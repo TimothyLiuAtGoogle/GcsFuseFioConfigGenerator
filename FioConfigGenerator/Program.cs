@@ -4,12 +4,9 @@ public class Program
     public static void Main(string[] args)
     {
         int[] threadCounts = new int[] { 16, 48, 96 };
-        // string[] objectSizes = new string[] { "256K", "1M", "5M", "15M", "30M", "60M", "120M", "250M", "500M", "1G" };
-        string[] objectSizes = new string[] { "30M", "60M", "120M", "250M" };
+        string[] objectSizes = new string[] { "256K", "1M", "5M", "15M", "30M", "60M", "120M", "250M", "500M", "1G" };
         GenerateReadConfigFile(threadCounts, objectSizes);
-        System.Console.WriteLine("Fio config file(s) generated. Pls create subfolders with:");
-        string command = string.Join(" && ", objectSizes.Select(s => $"mkdir {s}"));
-        System.Console.WriteLine(command);
+        System.Console.WriteLine("Fio config file(s) generated.");
     }
 
     public static void GenerateReadConfigFile(int[] threadCounts, string[] objectSizes)
@@ -26,9 +23,9 @@ public class Program
             "iodepth=64 ;Allow up to 64 outstanding I/O requests to be issued at the same time. This can improve I/O performance, especially when dealing with high-latency storage.",
             "invalidate=1 ;Invalidate the data in the cache before each read. This ensures that each read is from the storage device, not the cache.",
             "# Timing and Load:",
-            "ramp_time=1m ;Gradually increase the I/O load over a period of 1 minute. This helps to avoid shocking the storage system at the start of the test.",
-            "runtime=6m ;Run the test for 6 minutes.",
-            //"startdelay=1m ;Wait for 1 minutes before starting the test. This can be used to stagger the start times of multiple Fio jobs, or to allow the storage device to warm up.",
+            "ramp_time=2m ;Gradually increase the I/O load over a period of 1 minute. This helps to avoid shocking the storage system at the start of the test.",
+            "runtime=10m ;Run the test for 10 minutes. The `ramp_time` is included",
+            ";startdelay=2m ;Wait for 2 minutes before starting the test. This can be used to stagger the start times of multiple Fio jobs, or to allow the storage device to warm up.",
             "time_based=1 ;Run the test based on time, rather than the number of I/O operations completed.",
             "# Files and Jobs:",
             "nrfiles=1 ;Use one file per job.",
@@ -47,6 +44,8 @@ public class Program
             {
                 sb.AppendLine(headLine);
             }
+
+            sb.AppendLine(";============================\n");
 
             string[] readModes = new string[] { "read", "randread" };
             foreach (var objectSize in objectSizes)
@@ -67,6 +66,11 @@ public class Program
                     sb.AppendLine("stonewall\n");
                 }
             }
+
+            sb.AppendLine(";============================\n");
+
+            string command = string.Join(" && ", objectSizes.Select(s => $"mkdir {s}"));
+            sb.AppendLine($";{command}");
 
             string outputFileName = $"read_{threadCount}thread_{String.Join("_", objectSizes)}.fio";
             File.WriteAllText(outputFileName, sb.ToString());
