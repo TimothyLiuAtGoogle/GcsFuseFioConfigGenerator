@@ -4,7 +4,7 @@ public class Program
     public static void Main(string[] args)
     {
         int[] threadCounts = new int[] { 16, 48, 96 };
-        string[] objectSizes = new string[] { "256K", "1M", "5M", "15M", "30M", "60M", "120M", "250M", "500M", "1G" };
+        string[] objectSizes = new string[] { "256K", "1M", "5M", "15M", "30M", "60M", "120M", "250M", "500M", "1G", "2G" };
         GenerateReadConfigFile(threadCounts, objectSizes);
         System.Console.WriteLine("Fio config file(s) generated.");
     }
