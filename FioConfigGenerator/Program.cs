@@ -6,7 +6,39 @@ public class Program
         int[] threadCounts = new int[] { 16, 48, 96 };
         string[] objectSizes = new string[] { "256K", "1M", "5M", "15M", "30M", "60M", "120M", "250M", "500M", "1G", "2G" };
         GenerateReadConfigFile(threadCounts, objectSizes);
+        GenerateReadCommands(threadCounts, objectSizes);
         System.Console.WriteLine("Fio config file(s) generated.");
+    }
+
+    public static void GenerateReadCommands(int[] threadCounts, string[] objectSizes)
+    {
+        string[] readModes = new string[] { "read", "randread" };
+        foreach (var threadCount in threadCounts)
+        {
+            List<string> commands = new List<string>();
+            foreach (var objectSize in objectSizes)
+            {
+                foreach (var readMode in readModes)
+                {
+                    string jobName = $"{objectSize}_{readMode}";
+                    string blockSize = "1M";
+                    string sizeUnit = objectSize[objectSize.Length - 1].ToString();
+                    if (sizeUnit == "k" || sizeUnit == "K") blockSize = "16K";
+
+                    string command = "fio --ioengine=libaio --direct=1 --fadvise_hint=0 --verify=0 --rw=read --iodepth=64 --invalidate=1 \\\n";
+                    command += "  --ramp_time=2m --runtime=10m --time_based=1 --nrfiles=1 --thread=1 --fsync=1 --openfiles=1\\\n";
+                    command += "  --group_reporting=1 --allrandrepeat=1 --filename_format=$jobname.$jobnum.$filenum \\\n";
+                    command += $"  --name={jobName} --filesize={objectSize} --bs={blockSize} --directory=./{objectSize} --rw={readMode} --numjobs={threadCount}";
+                    commands.Add(command);
+                }
+            }
+
+            string mkdirCommand = string.Join(" && ", objectSizes.Select(s => $"mkdir {s}"));
+            commands.Add($";{mkdirCommand}");
+
+            string commandFileName = $"read_{threadCount}thread_{String.Join("_", objectSizes)}.sh";
+            File.WriteAllLines(commandFileName, commands);
+        }
     }
 
     public static void GenerateReadConfigFile(int[] threadCounts, string[] objectSizes)
