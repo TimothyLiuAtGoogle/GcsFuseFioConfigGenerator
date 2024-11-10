@@ -1,49 +1,7 @@
 ﻿using System.Text;
 public class Program
 {
-    public static void Main(string[] args)
-    {
-        int[] threadCounts = new int[] { 16, 48, 96 };
-        string[] objectSizes = new string[] { "256K", "1M", "5M", "15M", "30M", "60M", "120M", "250M", "500M", "1G", "2G" };
-        GenerateReadConfigFile(threadCounts, objectSizes);
-        GenerateReadCommands(threadCounts, objectSizes);
-        System.Console.WriteLine("Fio config file(s) generated.");
-    }
-
-    public static void GenerateReadCommands(int[] threadCounts, string[] objectSizes)
-    {
-        string[] readModes = new string[] { "read", "randread" };
-        foreach (var threadCount in threadCounts)
-        {
-            List<string> commands = new List<string>();
-            foreach (var objectSize in objectSizes)
-            {
-                foreach (var readMode in readModes)
-                {
-                    string jobName = $"{objectSize}_{readMode}";
-                    string blockSize = "1M";
-                    string sizeUnit = objectSize[objectSize.Length - 1].ToString();
-                    if (sizeUnit == "k" || sizeUnit == "K") blockSize = "16K";
-
-                    string command = "fio --ioengine=libaio --direct=1 --fadvise_hint=0 --verify=0 --rw=read --iodepth=64 --invalidate=1 \\\n";
-                    command += "  --ramp_time=10s --runtime=1m --time_based=1 --nrfiles=1 --thread=1 --fsync=1 --openfiles=1 \\\n";
-                    command += "  --group_reporting=1 --allrandrepeat=1 --filename_format=$jobname.$jobnum.$filenum \\\n";
-                    command += $"  --name={jobName} --filesize={objectSize} --bs={blockSize} --directory=./{objectSize} --rw={readMode} --numjobs={threadCount}";
-                    commands.Add(command);
-                }
-            }
-
-            string mkdirCommand = string.Join(" && ", objectSizes.Select(s => $"mkdir {s}"));
-            commands.Add($";{mkdirCommand}");
-
-            string commandFileName = $"read_{threadCount}thread_{String.Join("_", objectSizes)}.sh";
-            File.WriteAllLines(commandFileName, commands);
-        }
-    }
-
-    public static void GenerateReadConfigFile(int[] threadCounts, string[] objectSizes)
-    {
-        string[] headerLines = new string[]{
+    private static string[] headerLines = new string[]{
             "[global]",
             "# I/O Engine and Behavior:",
             "ioengine=libaio ;Uses the Linux native asynchronous I/O engine, libaio, for efficient I/O operations.",
@@ -69,6 +27,68 @@ public class Program
             "filename_format=$jobname.$jobnum.$filenum ;Defines the format used to generate filenames.",
         };
 
+    public static void Main(string[] args)
+    {
+        int[] threadCounts = new int[] { 16, 48, 96 };
+        string[] objectSizes = new string[] { "256K", "1M", "5M", "15M", "30M", "60M", "120M", "250M", "500M", "1G", "2G" };
+        GenerateReadConfigFile(threadCounts, objectSizes);
+        GenerateShellCommands(threadCounts, objectSizes);
+        System.Console.WriteLine("Fio config file(s) generated.");
+    }
+
+    public static void GenerateSingleGroupConfigFile(string fioConfigFile)
+    {
+        string[] configurable = {
+            "[single_group]",
+            "bs=${BLOCK_SIZE}",
+            "filesize=${FILE_SIZE}",
+            "directory=./${FILE_SIZE}",
+            "rw=${MODE}",
+            "numjobs=${NUMJOBS}"
+        };
+
+        StringBuilder sb = new StringBuilder();
+        foreach (var headLine in headerLines)
+            sb.AppendLine(headLine);
+        foreach (var line in configurable)
+            sb.AppendLine(line);
+
+        if (File.Exists(fioConfigFile))
+            File.Delete(fioConfigFile);
+        File.WriteAllText(fioConfigFile, sb.ToString());
+    }
+
+    public static void GenerateShellCommands(int[] threadCounts, string[] objectSizes)
+    {
+        string[] readModes = new string[] { "read", "randread" };
+        string fioConfigFile = "read.fio";
+        GenerateSingleGroupConfigFile(fioConfigFile);
+        foreach (var threadCount in threadCounts)
+        {
+            StringBuilder sb = new StringBuilder();
+            foreach (var objectSize in objectSizes)
+            {
+                foreach (var mode in readModes)
+                {
+                    string blockSize = "1M";
+                    string sizeUnit = objectSize[objectSize.Length - 1].ToString();
+                    if (sizeUnit == "k" || sizeUnit == "K")
+                    {
+                        blockSize = "16K";
+                    }
+
+                    string command = $"BLOCK_SIZE={blockSize} FILE_SIZE={objectSize} MODE={mode} NUMJOBS={threadCount} fio {fioConfigFile}";
+                    sb.AppendLine(command);
+                }
+            }
+            string outputFileName = $"read_{threadCount}thread_{String.Join("_", objectSizes)}.sh";
+            File.WriteAllText(outputFileName, sb.ToString());
+        }
+    }
+
+    public static void GenerateReadConfigFile(int[] threadCounts, string[] objectSizes)
+    {
+        string[] readModes = new string[] { "read", "randread" };
         foreach (var threadCount in threadCounts)
         {
             StringBuilder sb = new StringBuilder();
@@ -79,7 +99,6 @@ public class Program
 
             sb.AppendLine(";============================\n");
 
-            string[] readModes = new string[] { "read", "randread" };
             foreach (var objectSize in objectSizes)
             {
                 foreach (var readMode in readModes)
