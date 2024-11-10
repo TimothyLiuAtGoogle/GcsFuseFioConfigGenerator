@@ -26,7 +26,7 @@ public class Program
                     if (sizeUnit == "k" || sizeUnit == "K") blockSize = "16K";
 
                     string command = "fio --ioengine=libaio --direct=1 --fadvise_hint=0 --verify=0 --rw=read --iodepth=64 --invalidate=1 \\\n";
-                    command += "  --ramp_time=2m --runtime=10m --time_based=1 --nrfiles=1 --thread=1 --fsync=1 --openfiles=1\\\n";
+                    command += "  --ramp_time=10s --runtime=1m --time_based=1 --nrfiles=1 --thread=1 --fsync=1 --openfiles=1 \\\n";
                     command += "  --group_reporting=1 --allrandrepeat=1 --filename_format=$jobname.$jobnum.$filenum \\\n";
                     command += $"  --name={jobName} --filesize={objectSize} --bs={blockSize} --directory=./{objectSize} --rw={readMode} --numjobs={threadCount}";
                     commands.Add(command);
