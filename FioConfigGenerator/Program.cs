@@ -44,7 +44,8 @@ public class Program
             "filesize=${FILE_SIZE}",
             "directory=./${FILE_SIZE}",
             "rw=${MODE}",
-            "numjobs=${NUMJOBS}"
+            "numjobs=${NUMJOBS}",
+            "filename_format=${FILE_SIZE}_${MODE}.$jobnum.$filenum"
         };
 
         StringBuilder sb = new StringBuilder();
