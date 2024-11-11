@@ -8,8 +8,8 @@ public class Program
             "direct=1 ;Bypass the operating system cache and read data directly from the storage device. This can provide a more realistic measurement of storage performance as it avoids any caching effects.",
             "fadvise_hint=0 ;Don't provide file access hints to the operating system.",
             "verify=0 ;Disable data verification. This can improve performance, but should be enabled if data integrity is critical.",
-            "rw=read ;Perform sequential read operations.",
-            "bs=1M ;Use a block size of 1MB for I/O operations.",
+            ";rw=read ;Perform sequential read operations.",
+            ";bs=1M ;Use a block size of 1MB for I/O operations.",
             "iodepth=64 ;Allow up to 64 outstanding I/O requests to be issued at the same time. This can improve I/O performance, especially when dealing with high-latency storage.",
             "invalidate=1 ;Invalidate the data in the cache before each read. This ensures that each read is from the storage device, not the cache.",
             "# Timing and Load:",
@@ -31,15 +31,22 @@ public class Program
     {
         int[] threadCounts = new int[] { 16, 48, 96 };
         string[] objectSizes = new string[] { "256K", "1M", "5M", "15M", "30M", "60M", "120M", "250M", "500M", "1G", "2G" };
-        GenerateReadConfigFile(threadCounts, objectSizes);
-        GenerateShellCommands(threadCounts, objectSizes);
+
+        string fioReadConfigFile = "read.fio";
+        string[] readModes = new string[] { "read", "randread" };
+        GenerateShellCommands(threadCounts, objectSizes, readModes, fioReadConfigFile);
+
+        string fioWriteConfigFile = "write.fio";
+        string[] writeModes = new string[] { "write", "randwrite" };
+        GenerateShellCommands(threadCounts, objectSizes, writeModes, fioWriteConfigFile);
+
         System.Console.WriteLine("Fio config file(s) generated.");
     }
 
     public static void GenerateSingleGroupConfigFile(string fioConfigFile)
     {
         string[] configurable = {
-            "[single_group]",
+            "[job_001]",
             "bs=${BLOCK_SIZE}",
             "filesize=${FILE_SIZE}",
             "directory=./${FILE_SIZE}",
@@ -51,6 +58,9 @@ public class Program
         StringBuilder sb = new StringBuilder();
         foreach (var headLine in headerLines)
             sb.AppendLine(headLine);
+
+        sb.AppendLine();
+
         foreach (var line in configurable)
             sb.AppendLine(line);
 
@@ -59,17 +69,15 @@ public class Program
         File.WriteAllText(fioConfigFile, sb.ToString());
     }
 
-    public static void GenerateShellCommands(int[] threadCounts, string[] objectSizes)
+    public static void GenerateShellCommands(int[] threadCounts, string[] objectSizes, string[] modes, string fioConfigFile)
     {
-        string[] readModes = new string[] { "read", "randread" };
-        string fioConfigFile = "read.fio";
         GenerateSingleGroupConfigFile(fioConfigFile);
         foreach (var threadCount in threadCounts)
         {
             StringBuilder sb = new StringBuilder();
             foreach (var objectSize in objectSizes)
             {
-                foreach (var mode in readModes)
+                foreach (var mode in modes)
                 {
                     string blockSize = "1M";
                     string sizeUnit = objectSize[objectSize.Length - 1].ToString();
@@ -82,50 +90,50 @@ public class Program
                     sb.AppendLine(command);
                 }
             }
-            string outputFileName = $"read_{threadCount}thread_{String.Join("_", objectSizes)}.sh";
+            string outputFileName = $"{fioConfigFile.Split(".")[0]}_{threadCount}thread_{String.Join("_", objectSizes)}.sh";
             File.WriteAllText(outputFileName, sb.ToString());
         }
     }
 
-    public static void GenerateReadConfigFile(int[] threadCounts, string[] objectSizes)
-    {
-        string[] readModes = new string[] { "read", "randread" };
-        foreach (var threadCount in threadCounts)
-        {
-            StringBuilder sb = new StringBuilder();
-            foreach (var headLine in headerLines)
-            {
-                sb.AppendLine(headLine);
-            }
+    // public static void GenerateReadConfigFile(int[] threadCounts, string[] objectSizes)
+    // {
+    //     string[] readModes = new string[] { "read", "randread" };
+    //     foreach (var threadCount in threadCounts)
+    //     {
+    //         StringBuilder sb = new StringBuilder();
+    //         foreach (var headLine in headerLines)
+    //         {
+    //             sb.AppendLine(headLine);
+    //         }
 
-            sb.AppendLine(";============================\n");
+    //         sb.AppendLine(";============================\n");
 
-            foreach (var objectSize in objectSizes)
-            {
-                foreach (var readMode in readModes)
-                {
-                    string jobName = $"{objectSize}_{readMode}";
-                    sb.AppendLine($"[{jobName}]");
-                    string sizeUnit = objectSize[objectSize.Length - 1].ToString();
-                    if (sizeUnit == "k" || sizeUnit == "K")
-                    {
-                        sb.AppendLine($"bs=16k");
-                    }
-                    sb.AppendLine($"filesize={objectSize}");
-                    sb.AppendLine($"directory=./{objectSize}");
-                    sb.AppendLine($"rw={readMode}");
-                    sb.AppendLine($"numjobs={threadCount}");
-                    sb.AppendLine("stonewall\n");
-                }
-            }
+    //         foreach (var objectSize in objectSizes)
+    //         {
+    //             foreach (var readMode in readModes)
+    //             {
+    //                 string jobName = $"{objectSize}_{readMode}";
+    //                 sb.AppendLine($"[{jobName}]");
+    //                 string sizeUnit = objectSize[objectSize.Length - 1].ToString();
+    //                 if (sizeUnit == "k" || sizeUnit == "K")
+    //                 {
+    //                     sb.AppendLine($"bs=16k");
+    //                 }
+    //                 sb.AppendLine($"filesize={objectSize}");
+    //                 sb.AppendLine($"directory=./{objectSize}");
+    //                 sb.AppendLine($"rw={readMode}");
+    //                 sb.AppendLine($"numjobs={threadCount}");
+    //                 sb.AppendLine("stonewall\n");
+    //             }
+    //         }
 
-            sb.AppendLine(";============================\n");
+    //         sb.AppendLine(";============================\n");
 
-            string command = string.Join(" && ", objectSizes.Select(s => $"mkdir {s}"));
-            sb.AppendLine($";{command}");
+    //         string command = string.Join(" && ", objectSizes.Select(s => $"mkdir {s}"));
+    //         sb.AppendLine($";{command}");
 
-            string outputFileName = $"read_{threadCount}thread_{String.Join("_", objectSizes)}.fio";
-            File.WriteAllText(outputFileName, sb.ToString());
-        }
-    }
+    //         string outputFileName = $"read_{threadCount}thread_{String.Join("_", objectSizes)}.fio";
+    //         File.WriteAllText(outputFileName, sb.ToString());
+    //     }
+    // }
 }
